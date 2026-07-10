@@ -39,7 +39,6 @@
         .btn-clear-all { background-color: rgba(239, 68, 68, 0.2); color: var(--accent-red); border: 1px solid var(--accent-red); padding: 0.75rem 1.25rem; font-size: 0.9rem; font-weight: 700; border-radius: 12px; cursor: pointer; transition: background 0.2s; }
         .btn-clear-all:hover { background-color: var(--accent-red); color: white; }
 
-        /* Integrated Filter Section inside Controls Panel */
         .filter-inline-group { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; background-color: rgba(30, 41, 59, 0.7); padding: 0.5rem 0.75rem; border-radius: 12px; border: 1px solid var(--border-color); }
         .filter-title { font-size: 0.8rem; font-weight: 700; color: var(--accent-teal); text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.25rem; }
         .filter-item { display: flex; align-items: center; gap: 0.4rem; }
@@ -99,7 +98,6 @@
         .table-text-input { background-color: #0f172a; color: #f1f5f9; border: 1px solid transparent; padding: 0.4rem; border-radius: 4px; font-size: 0.8rem; width: 100%; min-width: 140px; outline: none; }
         .table-text-input:focus { border-color: var(--accent-blue); background-color: var(--bg-input); }
         
-        /* Specialized Short Text Input for Table Time Grid */
         .table-time-input { background-color: rgba(15, 23, 42, 0.6); color: #cbd5e1; border: 1px solid rgba(71, 85, 105, 0.5); padding: 0.3rem 0.5rem; border-radius: 6px; font-size: 0.8rem; font-family: monospace; font-weight: 700; text-align: center; width: 95px; outline: none; }
         .table-time-input:focus { border-color: var(--accent-blue); background-color: var(--bg-input); }
 
@@ -178,11 +176,11 @@
                     </div>
                     <div class="input-box">
                         <label>Time Chat (Oras ng Chat ng Client)</label>
-                        <input type="text" id="insTimeChat" placeholder="e.g. 12:13 PM">
+                        <input type="text" id="insTimeChat" placeholder="e.g. 13:45">
                     </div>
                     <div class="input-box">
                         <label>Time Reply (Oras ng Sagot ng Staff)</label>
-                        <input type="text" id="insTimeReply" placeholder="e.g. 12:15 PM">
+                        <input type="text" id="insTimeReply" placeholder="e.g. 13:50">
                     </div>
                     <div class="input-box">
                         <label>Source Type</label>
@@ -253,7 +251,8 @@
     </div>
 
     <script>
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyl5FXKdHmgxPyWfrKkgmKYNiDv6BSKR93hK4G7bClhKWSdHKVQcfHAQkKuFP6dYFjovA/exec";
+        // PAALALA: PALITAN MO ITO NG IYONG BAGONG WEB APP URL MULA SA APPS SCRIPT
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx1DAFf3Ziy0hqNUqFXLnbSOZ7MtPSbJ-QFgi0BHCjxFU2qoiou1lnG1UT7-Rj9yPBjEw/exec";
 
         const tableBody = document.getElementById('tableBody');
         const syncStatus = document.getElementById('syncStatus');
@@ -263,6 +262,45 @@
         let globalCampaignName = "";
         let campaignImageBase64 = "";
         let isUserEditingCampaign = false;
+
+        // FORMATTER PARA SA DATE: Ginagawang Abbreviated Month (e.g., "2026-07-10" -> "Jul 10, 2026")
+        function formatAbbreviatedDate(dateStr) {
+            if (!dateStr) return "";
+            if (dateStr.includes("GMT") || dateStr.length > 15) {
+                const parts = dateStr.split(" ");
+                if (parts.length >= 4) return `${parts[1]} ${parts[2]}, ${parts[3]}`;
+            }
+            const dateObj = new Date(dateStr);
+            if (isNaN(dateObj.getTime())) return dateStr;
+
+            const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            return `${months[dateObj.getMonth()]} ${dateObj.getDate()}, ${dateObj.getFullYear()}`;
+        }
+
+        // FORMATTER PARA SA TIME: Pinipilit na maging malinis na 24-Hour Time format (e.g., "13:45")
+        function formatTo24Hour(timeStr) {
+            if (!timeStr || timeStr === 'N/A') return "";
+            if (timeStr.includes('T')) {
+                return timeStr.split('T')[1].substring(0, 5);
+            }
+            const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+            if (match) {
+                let hours = parseInt(match[1]);
+                const minutes = match[2];
+                const ampm = match[3].toUpperCase();
+                if (ampm === "PM" && hours < 12) hours += 12;
+                if (ampm === "AM" && hours === 12) hours = 0;
+                return String(hours).padStart(2, '0') + ":" + minutes;
+            }
+            return timeStr.substring(0, 5);
+        }
+
+        // KUKUNIN ANG LIVE PHILIPPINE TIME SA FORMAT NA 24-HOUR (HH:MM)
+        function getLive24HourTimeString() {
+            const now = new Date();
+            const phTimeStr = now.toLocaleTimeString('en-US', { timeZone: 'Asia/Manila', hour12: false });
+            return phTimeStr.substring(0, 5);
+        }
 
         function loadCloudData() {
             if (isUserEditingCampaign) return;
@@ -307,7 +345,6 @@
             document.getElementById('kpiAdSpend').textContent = "₱" + globalAdSpend.toLocaleString('en-US', {minimumFractionDigits: 2});
         }
 
-        // BAGONG LOGIC: Inalis ang new Date() at timezone manipulation para hindi magbago ang araw
         function applyDateFilter() {
             const startVal = document.getElementById('filterStartDate').value;
             const endVal = document.getElementById('filterEndDate').value;
@@ -315,19 +352,12 @@
             let filteredList = [...cachedCloudRecords];
 
             if (startVal) {
-                filteredList = filteredList.filter(r => {
-                    let rDate = r.date ? r.date.trim() : "";
-                    return rDate >= startVal;
-                });
+                filteredList = filteredList.filter(r => r.date && r.date.trim() >= startVal);
             }
             if (endVal) {
-                filteredList = filteredList.filter(r => {
-                    let rDate = r.date ? r.date.trim() : "";
-                    return rDate <= endVal;
-                });
+                filteredList = filteredList.filter(r => r.date && r.date.trim() <= endVal);
             }
 
-            // Gagamit ng localeCompare string sorting para laging eksakto at walang laban sa Timezone ang UI
             filteredList.sort((a, b) => b.date.localeCompare(a.date));
             
             tableBody.innerHTML = "";
@@ -347,16 +377,6 @@
             applyDateFilter();
         }
 
-        function getLive12HourTimeString() {
-            const now = new Date();
-            let hours = now.getHours();
-            const minutes = String(now.getMinutes()).padStart(2, '0');
-            const ampm = hours >= 12 ? 'PM' : 'AM';
-            hours = hours % 12;
-            hours = hours ? hours : 12; 
-            return `${hours}:${minutes} ${ampm}`;
-        }
-
         document.addEventListener("DOMContentLoaded", () => {
             const now = new Date();
             const year = now.getFullYear();
@@ -364,7 +384,7 @@
             const day = String(now.getDate()).padStart(2, '0');
             document.getElementById('insDate').value = `${year}-${month}-${day}`;
 
-            const currentLiveTime = getLive12HourTimeString();
+            const currentLiveTime = getLive24HourTimeString();
             document.getElementById('insTimeChat').value = currentLiveTime;
             document.getElementById('insTimeReply').value = currentLiveTime;
 
@@ -439,7 +459,7 @@
                 clothing: document.getElementById('insClothing').value.toUpperCase() || 'N/A',
                 status: document.getElementById('insStatus').value,
                 amount: parseFloat(document.getElementById('insAmount').value) || 0,
-                staff: document.getElementById('insStaff').value.toUpperCase(), 
+                staff: document.getElementById('insStaff').value.trim().toUpperCase(), 
                 clientMsg: document.getElementById('insMsg').value || 'N/A',
                 salesResp: document.getElementById('insResp').value || 'N/A',
                 followUp: document.getElementById('insFollow').value || 'N/A'
@@ -475,10 +495,11 @@
             }
         }
 
-        // INAYOS: Direkta nitong isasaksak kung anong malinis na string (e.g. 2026-07-08) ang binigay ng sheet nang walang pagbago
         function renderTableRow(obj) {
             const newRow = document.createElement('tr');
-            let cleanDate = obj.date ? obj.date.trim() : "";
+            let cleanDate = formatAbbreviatedDate(obj.date);
+            let cleanTimeChat = formatTo24Hour(obj.timeChat);
+            let cleanTimeReply = formatTo24Hour(obj.timeReply);
             
             const badgeClass = obj.source === 'ADS' ? 'source-badge ads' : 'source-badge organic';
             const pendingStyleClass = obj.status === 'PENDING' ? 'table-select pending-style' : 'table-select';
@@ -486,8 +507,8 @@
             newRow.innerHTML = `
                 <td>${cleanDate}</td>
                 <td style="font-weight:bold;">${obj.clientName}</td>
-                <td><input type="text" class="table-time-input" value="${obj.timeChat}" onchange="handleInlineChange('${obj.id}', 'timeChat', this.value)"></td>
-                <td><input type="text" class="table-time-input" value="${obj.timeReply}" onchange="handleInlineChange('${obj.id}', 'timeReply', this.value)"></td>
+                <td><input type="text" class="table-time-input" value="${cleanTimeChat}" onchange="handleInlineChange('${obj.id}', 'timeChat', this.value)"></td>
+                <td><input type="text" class="table-time-input" value="${cleanTimeReply}" onchange="handleInlineChange('${obj.id}', 'timeReply', this.value)"></td>
                 <td><span class="${badgeClass}">${obj.source}</span></td>
                 <td>${obj.clothing}</td>
                 <td><span class="staff-name-text">👤 ${obj.staff}</span></td>
@@ -526,62 +547,52 @@
             document.getElementById('kpiRevenue').textContent = "₱" + revenue.toLocaleString('en-US', {minimumFractionDigits: 2});
         }
 
+        // BAGONG EXPORT LOGIC: LIGTAS MULA SA FORMATTING ERROR AT MAY FILTERS
         function exportToExcel() {
-    // 1. Magpakita ng prompt para sa pagpili ng staff bago mag-export
-    const choice = prompt("Sino ang gustong i-export?\n\nI-type ang:\n[ RHOSE ] - Para kay Rhose lang\n[ JESS ] - Para kay Jess lang\n[ ALL ] - Para sa lahat ng staff\n\n(I-click ang Cancel para kanselahin)");
+            const choice = prompt("Sino ang gustong i-export?\n\nI-type ang:\n[ RHOSE ] - Para kay Rhose lang\n[ JESS ] - Para kay Jess lang\n[ ALL ] - Para sa lahat ng staff\n\n(I-click ang Cancel para kanselahin)");
 
-    // Kung pinindot ang Cancel o walang tinype
-    if (choice === null) return; 
+            if (choice === null) return; 
 
-    // Gawing uppercase para hindi maselan sa capitalization (e.g., rhose, Rhose, RHOSE)
-    const filterStaff = choice.trim().toUpperCase();
+            const filterStaff = choice.trim().toUpperCase();
 
-    // Validasyon ng input
-    if (filterStaff !== "RHOSE" && filterStaff !== "JESS" && filterStaff !== "ALL") {
-        alert("Maling input! Paki-type lamang ang RHOSE, JESS, o ALL.");
-        return;
-    }
+            if (filterStaff !== "RHOSE" && filterStaff !== "JESS" && filterStaff !== "ALL") {
+                alert("Maling input! Paki-type lamang ang RHOSE, JESS, o ALL.");
+                return;
+            }
 
-    const dataArray = [["Date", "Client Name", "Time Chat", "Time Reply", "Source Type", "Clothing Type", "Assigned Staff", "Deal Status", "Amount Paid (PHP)", "Client Message", "Sales Response", "Follow-up Note"]];
-    const rows = tableBody.querySelectorAll('tr');
+            const dataArray = [["Date", "Client Name", "Time Chat", "Time Reply", "Source Type", "Clothing Type", "Assigned Staff", "Deal Status", "Amount Paid (PHP)", "Client Message", "Sales Response", "Follow-up Note"]];
+            let recordsToExport = [...cachedCloudRecords];
 
-    rows.forEach(row => {
-        if(row.cells.length < 13) return; 
+            if (filterStaff === "RHOSE") {
+                recordsToExport = recordsToExport.filter(r => r.staff && r.staff.trim().toUpperCase() === "RHOSE");
+            } else if (filterStaff === "JESS") {
+                recordsToExport = recordsToExport.filter(r => r.staff && r.staff.trim().toUpperCase() === "JESS");
+            }
 
-        // Kunin ang pangalan ng staff sa kasalukuyang row at linisin ito
-        const staffNameInRow = row.cells[6].innerText.replace('👤', '').trim().toUpperCase();
+            recordsToExport.forEach(record => {
+                dataArray.push([
+                    formatAbbreviatedDate(record.date),
+                    record.clientName || "",
+                    formatTo24Hour(record.timeChat),
+                    formatTo24Hour(record.timeReply),
+                    record.source || "",
+                    record.clothing || "",
+                    record.staff || "",
+                    record.status || "",
+                    parseFloat(record.amount) || 0,
+                    record.clientMsg || "",
+                    record.salesResp || "",
+                    record.followUp || ""
+                ]);
+            });
 
-        // LOGIC NG FILTERING:
-        // Kung pinili ay RHOSE, dapat tugma sa RHOSE. Kung JESS, dapat tugma sa JESS.
-        // Kung ALL, papayagan ang kahit anong staff.
-        if (filterStaff === "RHOSE" && staffNameInRow !== "RHOSE") return;
-        if (filterStaff === "JESS" && staffNameInRow !== "JESS") return;
+            const fileNameSuffix = filterStaff === "ALL" ? "ALL_STAFF" : filterStaff;
 
-        // Isama sa dataArray kung pumasa sa filter
-        dataArray.push([
-            row.cells[0].innerText, 
-            row.cells[1].innerText, 
-            row.cells[2].querySelector('input').value, 
-            row.cells[3].querySelector('input').value,
-            row.cells[4].innerText, 
-            row.cells[5].innerText,
-            row.cells[6].innerText.replace('👤', '').trim(), // Dito lalabas ang Assigned Staff sa Excel
-            row.cells[7].querySelector('select').value,
-            parseFloat(row.cells[8].querySelector('input').value) || 0, 
-            row.cells[9].querySelector('input').value,
-            row.cells[10].querySelector('input').value, 
-            row.cells[11].querySelector('input').value
-        ]);
-    });
-
-    // Lagyan ng pangalan ang file base sa kung sino ang pinili
-    const fileNameSuffix = filterStaff === "ALL" ? "ALL_STAFF" : filterStaff;
-
-    const worksheet = XLSX.utils.aoa_to_sheet(dataArray);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, `System Log - ${fileNameSuffix}`);
-    XLSX.writeFile(workbook, `CRM_System_Report_${fileNameSuffix}.xlsx`);
-}
+            const worksheet = XLSX.utils.aoa_to_sheet(dataArray);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, `System Log - ${fileNameSuffix}`);
+            XLSX.writeFile(workbook, `CRM_System_Report_${fileNameSuffix}.xlsx`);
+        }
 
         function clearAllTrackerData() {
             if(confirm("⚠️ CRITICAL WARNING: Sigurado ka bang buburahin ang LAHAT ng system records? Mabubura ito sa screen ng lahat ng ka-team mo.")) {
